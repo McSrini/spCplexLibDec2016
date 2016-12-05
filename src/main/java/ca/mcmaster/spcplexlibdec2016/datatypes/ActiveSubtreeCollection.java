@@ -46,7 +46,7 @@ public class ActiveSubtreeCollection {
     private Solution bestKnownLocalSolution  = new Solution () ;
     private double bestKnownLocalOptimum =bestKnownLocalSolution.getObjectiveValue();
         
-    //for statistics
+    //for performance statistics
     public double totalTimeAllocatedForSolving = ZERO;
     public double totalTimeUsedForSolving = ZERO;
      
@@ -135,12 +135,87 @@ public class ActiveSubtreeCollection {
         
     }
     
+
+    
+    //here is the method that the Spark Driver should invoke in every MAP cycle
+    //
+    //cull any raw nodes and active trees that are inferior
+    //
+    //add a list of raw nodes, prune any nodes chosen for migration, and solve the ILOCPLEX Tree(s)
+    //
+    //return a list of farmed out nodes AND  metrics needed to estimate time to completion of the partition  (note that driver estimates 
+    // time to completion as a function of latest updated incumbent , best available estimate of obj value at completion got from all tress, 
+    // and time spent solving a tree and the progress the tree has made).
+    //
+    //also return the best solution found
+    public CollectionSolutionResult solve () {
+        //todo
+        //for the time being, all the individual methods are available separately
+        return null;
+    }
+    
     //driver needs a way to inspect each active subtree for available farmed nodes
-    //here is an inelegant way of allowing that
+    //here is an inelegant way of allowing that for the time being
     public List <ActiveSubtree> getActiveSubtreeList () {
         return this.activeSubtreeList;
     }
     
+    public double estimatedTimeToCompletionInSeconds (Solution bestKnownGlobalSolution, double bestKnownGlobalEstimateAtCompletion) {
+        //we know how long each tree has been solved, its LP relax value now, and at Birth
+        //So estimate how much time it will take to reach bestKnowGlobalEstimateAtCompletion
+        //Estimated time to completion is sum of these times for all trees
+        
+        //default is to assume it will last a long time
+        double ttc = ZERO ;
+        
+        for (int treeIndex = ZERO;treeIndex < this.activeSubtreeList.size();  treeIndex++){
+            double ttc_forTree= PLUS_INFINITY ;
+              
+            double progressMade =  activeSubtreeList.get( treeIndex).subtreeMetaData.lpRelaxValueAtBirth - activeSubtreeList.get( treeIndex).subtreeMetaData.lpRelaxValueNow;
+            if (Math.abs( progressMade)>ZERO) {
+                ttc_forTree =  activeSubtreeList.get( treeIndex).subtreeMetaData.timeSpentSolvingThisSubtreeInSeconds * (bestKnownGlobalEstimateAtCompletion -
+                               activeSubtreeList.get( treeIndex).subtreeMetaData.lpRelaxValueNow);
+                ttc_forTree = Math.abs(ttc_forTree/progressMade );
+            }
+              
+            if (ttc_forTree==PLUS_INFINITY || ttc_forTree==ZERO ) {
+                //these are special cases when we dont have an estimate , so assume it will last long
+                ttc =PLUS_INFINITY;
+                break;
+            }else {
+                ttc +=ttc_forTree;
+            }
+             
+        }
+        
+        return ttc;
+    }
+    
+    public double getBestEstimatedObjectiveValueAtCompletion(){
+        double estimateAtCompletion = IS_MAXIMIZATION ? MINUS_INFINITY : PLUS_INFINITY; 
+        for (int treeIndex = ZERO;treeIndex < this.activeSubtreeList.size();  treeIndex++){
+            if (activeSubtreeList.get( treeIndex).subtreeMetaData.estimatedObjectiveValueAtCompletion > estimateAtCompletion && IS_MAXIMIZATION) {
+               estimateAtCompletion = activeSubtreeList.get( treeIndex).subtreeMetaData.estimatedObjectiveValueAtCompletion;
+            }
+            if (activeSubtreeList.get( treeIndex).subtreeMetaData.estimatedObjectiveValueAtCompletion < estimateAtCompletion && !IS_MAXIMIZATION) {
+               estimateAtCompletion = activeSubtreeList.get( treeIndex).subtreeMetaData.estimatedObjectiveValueAtCompletion;
+            }
+        }
+        return estimateAtCompletion;
+    }
+    
+    public void doFarming  (  int mapIteratioNumber, int partitionNumber) throws Exception{
+        
+        //order every active subtree to produce 1 candidate node for farming
+        logger.info(" Doing Farming - map iteration "+ mapIteratioNumber + " , subtree collection " + partitionNumber );
+        
+        for (int treeIndex = ZERO;treeIndex < this.activeSubtreeList.size();  treeIndex++){
+            //allow more than ten minutes to farm one node :)
+            this.solveTree(activeSubtreeList.get( treeIndex), TEN*HUNDRED,  DO_FARMING);
+        }
+        
+    }
+        
     public Solution rampUp  (  int mapIteratioNumber, int partitionNumber) throws Exception{
         
         logger.info(" Ramp up - iteration "+ mapIteratioNumber + " , subtree collection " + partitionNumber );
@@ -163,20 +238,7 @@ public class ActiveSubtreeCollection {
         
         logger.debug("Tree has this many active leafs after solving " +    subtree.getActiveSubtreeMetaData().numActiveLeafs) ;
         return bestKnownLocalSolution;
-    }
-    
-    public void doFarming  (  int mapIteratioNumber, int partitionNumber) throws Exception{
-        
-        //order every active subtree to produce 1 candidate node for farming
-        logger.info(" Doing Farming - map iteration "+ mapIteratioNumber + " , subtree collection " + partitionNumber );
-        
-        for (int treeIndex = ZERO;treeIndex < this.activeSubtreeList.size();  treeIndex++){
-            //allow more than ten minutes to farm one node :)
-            this.solveTree(activeSubtreeList.get( treeIndex), TEN*HUNDRED,  DO_FARMING);
-        }
-        
-    }
-                  
+    }              
     
     //Solve an active sub-tree selected by the tree selection strategy
     public Solution solve  ( Instant endTimeOnWorkerMachine,         
@@ -219,13 +281,13 @@ public class ActiveSubtreeCollection {
                         " tree has this many active leafs " +
                         subtree.getActiveSubtreeMetaData().numActiveLeafs);                 
                 
-                logger.debug("Solve this tree for   "+(int)Math.round(wallClockTimeLeft/this.activeSubtreeList.size()));
+                logger.debug("Solve this tree for   "+(int)Math.round(wallClockTimeLeft/numTreesLeft));
                 boolean betterSolutionFound = solveTree(  subtree, (int)Math.round(wallClockTimeLeft/ numTreesLeft) , NORMAL__SOLVE );   
                 
                 if ( subtree.isDiscardable() || subtree.isSolvedToCompletion() || subtree.isInferior( bestKnownLocalOptimum) ) {
                     if (subtree.isDiscardable()) logger.debug(" tree discarded "+subtree.getActiveSubtreeMetaData().guid);
-                    if (subtree.isSolvedToCompletion()) logger.debug(" tree is Solved To Completion "+
-                            subtree.getActiveSubtreeMetaData().guid);
+                    if (subtree.isSolvedToCompletion()) logger.debug(" tree is Solved To Completion "+   subtree.getActiveSubtreeMetaData().guid);
+                    
                     subtree.end();
                     activeSubtreeList.remove(cursorToTreeBeingSolved);
                 } 
@@ -235,7 +297,7 @@ public class ActiveSubtreeCollection {
                     this.cullInferiorRawNodes(bestKnownLocalOptimum );
                     this.cullInferiorTrees(bestKnownLocalOptimum); 
                 }
-                    
+                                    
             } else {
                 //nothing left to solve
                 break;
@@ -283,7 +345,7 @@ public class ActiveSubtreeCollection {
     //pick a tree to solve
     private int getIndexOfTreeToSolve () throws  Exception{
         
-        //first convert any raw nodes to trees, subjetc to tree limit
+        //first convert any raw nodes to trees, subject to tree limit
         int numRawNodes = this.rawNodeList.size();
         int numTrees = this.activeSubtreeList.size();
         while  ( ( numRawNodes>ZERO) && (numTrees < MAX_ACTIVE_SUBTREES_PER_PARTITION) ){

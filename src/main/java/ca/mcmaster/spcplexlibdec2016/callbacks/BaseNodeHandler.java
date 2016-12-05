@@ -5,9 +5,12 @@
  */
 package ca.mcmaster.spcplexlibdec2016.callbacks;
 
+import static ca.mcmaster.spcplexlibdec2016.Constants.MINUS_INFINITY;
 import static ca.mcmaster.spcplexlibdec2016.Constants.ONE;
+import static ca.mcmaster.spcplexlibdec2016.Constants.PLUS_INFINITY;
 import static ca.mcmaster.spcplexlibdec2016.Constants.ZERO;
 import static ca.mcmaster.spcplexlibdec2016.Parameters.IS_MAXIMIZATION;
+import ca.mcmaster.spcplexlibdec2016.datatypes.ActiveSubtreeMetaData;
 import ca.mcmaster.spcplexlibdec2016.datatypes.NodeAttachment;
 import ilog.concert.IloException;
 import ilog.cplex.IloCplex;
@@ -17,6 +20,8 @@ import ilog.cplex.IloCplex;
  * @author tamvadss
  */
 public abstract class BaseNodeHandler extends IloCplex.NodeCallback{
+    
+    protected ActiveSubtreeMetaData subTreeMetaData ;
        
     //this method chooses the node for farming -- change this method if you have better heuristics for choosing migration candidates
     //
@@ -53,6 +58,31 @@ public abstract class BaseNodeHandler extends IloCplex.NodeCallback{
          nodeData.setNumberOfIntInfeasibilities(getNinfeasibilities(selectedNodeIndex) );
          nodeData.setSumOfIntInfeasibilities( getInfeasibilitySum(selectedNodeIndex));
          setNodeData(selectedNodeIndex ,nodeData) ;
+    }
+    
+    protected void updateTreeCompletionMetrics() throws IloException{
+        
+        //update the estimated tree lpRelaxValueNow  and estimatedObjectiveValueAtCompletion
+        //for maximization, these are the highest LPrelax and estimate of all reamining nodes
+        
+        double lpRelaxValueNow = IS_MAXIMIZATION ? MINUS_INFINITY : PLUS_INFINITY;
+        double estimateAtCompletion = IS_MAXIMIZATION ? MINUS_INFINITY : PLUS_INFINITY; 
+        for (int index = ZERO ; index < getNremainingNodes64(); index ++){
+            if (getEstimatedObjValue(index ) > estimateAtCompletion && IS_MAXIMIZATION) {
+                estimateAtCompletion=getEstimatedObjValue(index );
+            }
+            if (getEstimatedObjValue(index ) < estimateAtCompletion && !IS_MAXIMIZATION) {
+                estimateAtCompletion=getEstimatedObjValue(index );
+            }
+            if ( getObjValue(index) >  lpRelaxValueNow && IS_MAXIMIZATION) {
+                lpRelaxValueNow= getObjValue(index);
+            }
+            if ( getObjValue(index) < lpRelaxValueNow && !IS_MAXIMIZATION) {
+                lpRelaxValueNow= getObjValue(index);
+            }
+        }
+        this.subTreeMetaData.lpRelaxValueNow =lpRelaxValueNow;
+        this.subTreeMetaData.estimatedObjectiveValueAtCompletion=estimateAtCompletion;
     }
     
     protected NodeMetrics getAverageMetrics () throws IloException{

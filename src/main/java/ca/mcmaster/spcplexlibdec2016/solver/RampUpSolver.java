@@ -56,10 +56,10 @@ public class RampUpSolver {
         
     private void setSolverParams() throws IloException {
         //depth first?
-        cplex.setParam(IloCplex.Param.MIP.Strategy.NodeSelect,  USER_SELECTED_SEARCH_STRATEGY); 
+        //cplex.setParam(IloCplex.Param.MIP.Strategy.NodeSelect,  USER_SELECTED_SEARCH_STRATEGY); 
         
         //near strict best first
-        cplex.setParam( IloCplex.Param.MIP.Strategy.Backtrack,  BacktrackSelection); 
+        //cplex.setParam( IloCplex.Param.MIP.Strategy.Backtrack,  BacktrackSelection); 
         
         /** strong branching     cplex.setParam(IloCplex.Param.MIP.Strategy.VariableSelect,  3); */
     
@@ -67,7 +67,7 @@ public class RampUpSolver {
          cplex.setParam( IloCplex.Param.MIP.Strategy.File , ZERO);
         
         //MIP gap
-        if ( RELATIVE_MIP_GAP>ZERO) cplex.setParam( IloCplex.Param.MIP.Tolerances.MIPGap, RELATIVE_MIP_GAP);
+        //if ( RELATIVE_MIP_GAP>ZERO) cplex.setParam( IloCplex.Param.MIP.Tolerances.MIPGap, RELATIVE_MIP_GAP);
 
         //others
     }

@@ -29,8 +29,6 @@ public class Parameters  implements Serializable{
     
     public static   int NUM_NODES_TO_MIGRATE = ONE; //increases later
     
-    public static   int VARBOUND_TIGHETENING_PERCENT_INDICATIVE_OF_NEAR_COMPLETION = TEN ;
-    
     // map cycle time
     public  static    int SOLUTION_TIME_SLICE_PER_PARTITION_IN_SECONDS  =     FIVE*SIX*TEN; //five minutes
             

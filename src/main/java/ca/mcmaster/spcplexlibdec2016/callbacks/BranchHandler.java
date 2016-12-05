@@ -64,6 +64,11 @@ public class BranchHandler extends IloCplex.BranchCallback{
         this.  subtreeMetaData= metaData;    
          
     }
+    
+    public void refresh( double bestKnownOptimum, SolutionPhase solutionPhase) {
+        this.bestKnownOptimum=bestKnownOptimum;
+        this.solutionPhase = solutionPhase;
+    } 
 
     /**
      * discard inferior nodes, or entire trees
@@ -143,13 +148,6 @@ public class BranchHandler extends IloCplex.BranchCallback{
         }//end getNbranches()> ZERO
     } //end main
     
-    
-    public void refresh( double bestKnownOptimum, SolutionPhase solutionPhase) {
-        this.bestKnownOptimum=bestKnownOptimum;
-        this.solutionPhase = solutionPhase;
-    } 
-    
-        
     private void createTwoChildNodes(NodeAttachment parentNodeData) throws IloException{
         
         //First, append the 

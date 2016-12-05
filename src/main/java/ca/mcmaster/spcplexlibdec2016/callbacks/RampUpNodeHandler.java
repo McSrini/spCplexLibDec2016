@@ -22,9 +22,7 @@ import ilog.cplex.IloCplex;
  * 
  */
 public class RampUpNodeHandler  extends BaseNodeHandler{
-     
-    private ActiveSubtreeMetaData subTreeMetaData ;
-        
+      
     public RampUpNodeHandler (ActiveSubtreeMetaData meta) {
         this.subTreeMetaData= meta;
     }
@@ -48,6 +46,7 @@ public class RampUpNodeHandler  extends BaseNodeHandler{
                             subTreeMetaData.rootNodeAttachment.getDistanceFromOriginalRoot(),
                             ZERO );  
 
+                    subTreeMetaData.lpRelaxValueAtBirth =  getObjValue(ZERO);
                     setNodeData(ZERO ,nodeData) ;
 
                 } 
@@ -69,11 +68,9 @@ public class RampUpNodeHandler  extends BaseNodeHandler{
                         bestKnownLPRelax = getObjValue(index);
                     }
                 }
-
-                NodeAttachment nodeData = (NodeAttachment) getNodeData(selectedIndex );
-
-                setNodeData(selectedIndex ,nodeData) ;
+                
                 selectNode(selectedIndex);
+                
             } else {
                 //we will farm now, select good migration candidate , which may not be the highest LP relax node
                 
@@ -84,9 +81,13 @@ public class RampUpNodeHandler  extends BaseNodeHandler{
 
                 //set useful metrics inside this node which are only available in the node handler
                 initializeNodeWithMetricsUsedInMigrationDecisions(selectedNodeIndex);
+                
+                //update tree LP relax value etc.
+                updateTreeCompletionMetrics();
 
                 selectNode(selectedNodeIndex);
-            }
+                
+            }            
                          
         }
     }

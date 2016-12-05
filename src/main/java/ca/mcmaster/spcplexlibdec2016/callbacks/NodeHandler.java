@@ -15,11 +15,13 @@ import ilog.cplex.IloCplex;
 /**
  *
  * @author tamvadss
+ * 
+ * redirects CPLEX only when farming a node
+ * 
+ * 
  */
 public class NodeHandler extends BaseNodeHandler{
-    
-    private ActiveSubtreeMetaData subTreeMetaData ;
-        
+            
     //solution phase indicates whether we are farming,  or just solving
     private SolutionPhase solutionPhase ;
     
@@ -45,6 +47,8 @@ public class NodeHandler extends BaseNodeHandler{
                         subTreeMetaData.rootNodeAttachment.getDistanceFromOriginalRoot(),
                         ZERO );  
                 
+                subTreeMetaData.lpRelaxValueAtBirth =  getObjValue(ZERO);
+                
                 setNodeData(selectedNodeIndex ,nodeData) ;
                 
             } 
@@ -53,6 +57,9 @@ public class NodeHandler extends BaseNodeHandler{
                         
         //if in farming phase, we choose node to be processed. Else we dont interfere with node selection
         if(DO_FARMING==solutionPhase && getNremainingNodes64()>ONE)     /*cannot farm root node*/     {
+            
+            //update tree LP relax value etc. for the tree, these will be inspected before plucking 
+            updateTreeCompletionMetrics();
                                   
             selectedNodeIndex=getIndexOfFarmingCandidate();
 
@@ -63,12 +70,19 @@ public class NodeHandler extends BaseNodeHandler{
             initializeNodeWithMetricsUsedInMigrationDecisions(selectedNodeIndex);
                         
             selectNode(selectedNodeIndex);
-
+            
         }
         
         if (DO_FARMING==solutionPhase && getNremainingNodes64()<=ONE) {
+            
+            //update tree LP relax value etc. for the tree, these will be inspected before plucking 
+            updateTreeCompletionMetrics();
+            
+            //do not farm
             abort();
         }
+        
+
       
     }
         

@@ -34,6 +34,8 @@ public class ActiveSubtreeMetaData {
     //sometimes we find that the entire subtree can be discarded, because it cannot beat the incumbent 
     public boolean canDiscardEntireSubTree  = false;
     
+    //Farming related meta data (which follows) is used by the callbacks
+    
     //here are the farmed nodes which can be solved somewhere else , key is NodeID
     public Map< String,  NodeAttachment> farmedNodesMap = new LinkedHashMap< String, NodeAttachment>();
     
@@ -42,8 +44,13 @@ public class ActiveSubtreeMetaData {
     //Note that RAMP UP is special - several nodes are farmed, all of them  are pruned in advance, and all are chosen for migration 
     //Note also that we only allow 1 node per ActiveSubtree to be farmed, although the above data structures allow multiple nodes to be farmed
     
+    //these stats are required to estimate time to completion of the subtree
+    public double timeSpentSolvingThisSubtreeInSeconds = ZERO;
+    public double lpRelaxValueAtBirth = ZERO;
+    public double lpRelaxValueNow = ZERO;
+    public double estimatedObjectiveValueAtCompletion = ZERO;
     
-    //for statistics
+    //for performance statistics
     public long numActiveLeafs = ONE; //starts with root
     public int numNodesSelectedForMigrationSoFar = ZERO;
     public long numNodesBranchedUpon = ZERO;

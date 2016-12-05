@@ -22,6 +22,8 @@ import ca.mcmaster.spcplexlibdec2016.solver.RampUpSolver;
 import ca.mcmaster.spcplexlibdec2016.utilities.UtilityLibrary;
 import ilog.concert.IloException;
 import ilog.concert.IloLPMatrix;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Set;
 
 /**
@@ -82,10 +84,14 @@ public class ActiveSubtree {
     public IloCplex.Status solve ( double timeSliceInSeconds,         
             double bestKnownOptimum   , SolutionPhase solutionPhase  )
             throws  Exception {
+        
+        Instant startTime = Instant.now();
          
         //solve for some time
         IloCplex.Status  status = solver.solve( timeSliceInSeconds, bestKnownOptimum   , 
                 solutionPhase);
+        
+        this.subtreeMetaData.timeSpentSolvingThisSubtreeInSeconds+=Duration.between(startTime, Instant.now() ).toMillis()/THOUSAND;
         
         return status;
         
@@ -95,8 +101,13 @@ public class ActiveSubtree {
     public IloCplex.Status rampUp (   )
             throws  Exception {
          
+        //Instant startTime = Instant.now();
+         
         //solve for some time
         IloCplex.Status  status = this.rampUpSolver.solve( );
+        
+        //this.subtreeMetaData.timeSpentSolvingThisSubtreeInSeconds+=Duration.between(startTime, Instant.now() ).toMillis()/THOUSAND;
+        //not recording the ramp up time as time spent for solution of this subtree - we will start keeping time in the solution phase
         
         return status;
         
@@ -119,22 +130,25 @@ public class ActiveSubtree {
         return (String) this.subtreeMetaData.farmedNodesMap.keySet().toArray()[ZERO];
     }
       
-    public  NodeAttachment  getFarmedNode  () {
+    public  NodeAttachment  pluckFarmedNode  () {
         //mark the node as plucked out
         this.subtreeMetaData.nodeIDsSelectedForMigration.add( (String) this.subtreeMetaData.farmedNodesMap.keySet().toArray()[ZERO]);
         return   (NodeAttachment) this.subtreeMetaData.farmedNodesMap.values().toArray()[ZERO];
     }
     
     //sometimes, after farming we find that the farmed node is below the global cutoff
-    public void discardInferiorFarmedNode (double globalCutoff){
+    //
+    //method not needed as this node will be pruned in the branch handler anyway
+    //
+    /*public void discardInferiorFarmedNode (double globalCutoff){
         NodeAttachmentMetadata nodeAttachmentMetadata = new NodeAttachmentMetadata ();
         inspectFarmedNode (nodeAttachmentMetadata);
         if ((nodeAttachmentMetadata.lpRelaxValue    >= globalCutoff && !IS_MAXIMIZATION  ) || 
             (nodeAttachmentMetadata.lpRelaxValue    <= globalCutoff &&  IS_MAXIMIZATION  )){
             //mark it as selected for migration, equivalently get the farmed node but discard it
-             getFarmedNode  ();
+             pluckFarmedNode  ();
         }
-    }
+    }*/
     
     
     //a bunch of methods follow, related to subtree solution value and status
