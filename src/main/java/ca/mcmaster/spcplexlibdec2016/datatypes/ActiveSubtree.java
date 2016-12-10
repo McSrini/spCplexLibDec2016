@@ -62,7 +62,7 @@ public class ActiveSubtree {
     }
         
     //Constructor
-    public ActiveSubtree (  NodeAttachment attachment) throws  Exception  {
+    public ActiveSubtree (  NodeAttachment attachment ) throws  Exception  {
         
         //initialize the CPLEX object
         cplex= new IloCplex();   
@@ -77,37 +77,68 @@ public class ActiveSubtree {
         
         //get ourselves a solver
         solver = new Solver( cplex   , subtreeMetaData);
-        rampUpSolver = new RampUpSolver (  cplex ,   subtreeMetaData );
+        
     }
     
+   
     //solve for some time    
     public IloCplex.Status solve ( double timeSliceInSeconds,         
-            double bestKnownOptimum   , SolutionPhase solutionPhase  )
+            double bestKnownLocalOptimum   , SolutionPhase solutionPhase  )
             throws  Exception {
         
         Instant startTime = Instant.now();
-         
+       
+        if (solutionPhase.equals( SolutionPhase.NORMAL__SOLVE) ) 
+            this.subtreeMetaData.numLeafsBeforeSolve_History.add(ZERO, this.subtreeMetaData.numActiveLeafs) ;
+                 
         //solve for some time
-        IloCplex.Status  status = solver.solve( timeSliceInSeconds, bestKnownOptimum   , 
+        IloCplex.Status  status = solver.solve( timeSliceInSeconds, bestKnownLocalOptimum   , 
                 solutionPhase);
         
-        this.subtreeMetaData.timeSpentSolvingThisSubtreeInSeconds+=Duration.between(startTime, Instant.now() ).toMillis()/THOUSAND;
+        if (solutionPhase.equals( SolutionPhase.NORMAL__SOLVE) ) {
+            double timeSlice = Math.abs(Duration.between(startTime, Instant.now() ).toMillis()/THOUSAND);
+            //this.subtreeMetaData.timeSpentSolvingThisSubtreeInSeconds+=timeSlice; //timeSlice should be = timeSliceInSeconds
+
+            this.subtreeMetaData.numLeafsAfterSolve_History.add( ZERO,this.subtreeMetaData.numActiveLeafs);
+            this.subtreeMetaData.numLeafsCreated_History.add( ZERO,this.subtreeMetaData.numNodesBranchedUpon);
+            double zeroDbl = ZERO;
+            if (timeSlice>ZERO){
+                this.subtreeMetaData.numNodesSolvedPerSecond_History.add(ZERO, zeroDbl+ (this.subtreeMetaData.numNodesBranchedUpon+
+                                                                this.subtreeMetaData.numLeafsBeforeSolve_History.get(ZERO)-
+                                                                this.subtreeMetaData.numActiveLeafs)/timeSlice);
+            }else this.subtreeMetaData.numNodesSolvedPerSecond_History.add(ZERO,zeroDbl+ONE);//arbitrary estimate, should not happen
+            
+            this.estimateTimeToCompletionInSeconds();
+        }
         
         return status;
         
     }
-            
+    
+    public double getEstimatedTimeToCompletionInSeconds(){
+        return this.subtreeMetaData.estimatedTimeToCompletionInSeconds;
+    }
+    
+    //TODO - when farming, find estimated time to completion without this node , and include it in the 
+    //nodes sent to load balancer only if plucking it will not leave the home partition starving
+                    
     //do ramp up
     public IloCplex.Status rampUp (   )
             throws  Exception {
          
         //Instant startTime = Instant.now();
+        
+        //get ourselves a ramp up solver , note that this installs the approriate callbacks
+        rampUpSolver = new RampUpSolver (  cplex ,   subtreeMetaData );
          
         //solve for some time
         IloCplex.Status  status = this.rampUpSolver.solve( );
         
         //this.subtreeMetaData.timeSpentSolvingThisSubtreeInSeconds+=Duration.between(startTime, Instant.now() ).toMillis()/THOUSAND;
         //not recording the ramp up time as time spent for solution of this subtree - we will start keeping time in the solution phase
+        
+        //now we must revert to the regular callbacks
+        solver = new Solver( cplex   , subtreeMetaData);
         
         return status;
         
@@ -118,38 +149,36 @@ public class ActiveSubtree {
     }
         
     public List<NodeAttachment> getFarmedNodesAfterRampUp () {
-        return new ArrayList ( this.subtreeMetaData.farmedNodesMap.values());
+        List<NodeAttachment> nodes = new ArrayList<NodeAttachment>();
+        while (this.subtreeMetaData.farmedNodesMap.size()>ZERO) {
+            NodeAttachment node = (NodeAttachment) this.subtreeMetaData.farmedNodesMap.values().toArray()[ZERO];
+            nodes.add(this.subtreeMetaData.farmedNodesMap.remove(node.getNodeid()));
+        }
+        return nodes;
     }
       
     //use this method to get meta data of farmed node, which is used to 
     //decide whether to pluck it out or not (maybe some other partition has a better migration candidate)
     //
-    //returns node ID of available node, and available node is populated into nodeAttachmentMetadata
-    public String inspectFarmedNode (NodeAttachmentMetadata nodeAttachmentMetadata) {
-        nodeAttachmentMetadata= (NodeAttachmentMetadata) this.subtreeMetaData.farmedNodesMap.values().toArray()[ZERO];
-        return (String) this.subtreeMetaData.farmedNodesMap.keySet().toArray()[ZERO];
+    public NodeAttachmentMetadata inspectFarmedNode (  ) {
+        NodeAttachment node = (NodeAttachment) this.subtreeMetaData.farmedNodesMap.values().toArray()[ZERO];
+        return  node.getMetadataCopy();
+        
     }
       
     public  NodeAttachment  pluckFarmedNode  () {
         //mark the node as plucked out
-        this.subtreeMetaData.nodeIDsSelectedForMigration.add( (String) this.subtreeMetaData.farmedNodesMap.keySet().toArray()[ZERO]);
-        return   (NodeAttachment) this.subtreeMetaData.farmedNodesMap.values().toArray()[ZERO];
+        NodeAttachment node = (NodeAttachment) this.subtreeMetaData.farmedNodesMap.values().toArray()[ZERO];
+        this.subtreeMetaData.nodeIDsSelectedForMigration.add( node.getNodeid());
+        this.subtreeMetaData.farmedNodesMap.remove(node.getNodeid());
+        return  node ;
     }
     
-    //sometimes, after farming we find that the farmed node is below the global cutoff
-    //
-    //method not needed as this node will be pruned in the branch handler anyway
-    //
-    /*public void discardInferiorFarmedNode (double globalCutoff){
-        NodeAttachmentMetadata nodeAttachmentMetadata = new NodeAttachmentMetadata ();
-        inspectFarmedNode (nodeAttachmentMetadata);
-        if ((nodeAttachmentMetadata.lpRelaxValue    >= globalCutoff && !IS_MAXIMIZATION  ) || 
-            (nodeAttachmentMetadata.lpRelaxValue    <= globalCutoff &&  IS_MAXIMIZATION  )){
-            //mark it as selected for migration, equivalently get the farmed node but discard it
-             pluckFarmedNode  ();
-        }
-    }*/
-    
+    //call this method on trees where you do not take the candidate node
+    public void clearFarmedNode() {
+        this.subtreeMetaData.farmedNodesMap.clear();
+    }
+     
     
     //a bunch of methods follow, related to subtree solution value and status
            
@@ -262,4 +291,43 @@ public class ActiveSubtree {
     public String getGuid () {
         return this.subtreeMetaData.guid;
     } 
+        
+    private double forecastCreationNumber(   List<Long> numLeafsCreated_History ){
+        double result = ZERO;
+        if(numLeafsCreated_History.size()==ONE){
+            //return what we have
+            result = numLeafsCreated_History.get(ZERO);
+        }else if(numLeafsCreated_History.size()>ONE){
+            //arithmetic progression for 2 periods
+            result = TWO*numLeafsCreated_History.get(ZERO)-numLeafsCreated_History.get(ONE);
+        }
+        return result<=ZERO?ZERO: result;
+    }
+    
+    private double forescastSolutionrate( List<Double> numNodesSolvedPerSecond_History){
+        double result = ZERO;
+        
+        if (numNodesSolvedPerSecond_History.size()==ONE){
+            result = numNodesSolvedPerSecond_History.get(ZERO);
+        }else if (numNodesSolvedPerSecond_History.size()>ONE) {
+            //2 period geometric progression
+            result = numNodesSolvedPerSecond_History.get(ZERO)*(numNodesSolvedPerSecond_History.get(ZERO)/numNodesSolvedPerSecond_History.get(ONE));
+        }
+         
+        return result<=ZERO?ZERO: result;
+    }
+    
+    //call this method only after a solve MAP cycle
+    private void estimateTimeToCompletionInSeconds  (  ) {
+        
+        //#of nodes existing + #likely to be created, divided by estimated solution rate
+        
+        //creation rate and solution rate in the next cycle are calculated as geometric progressions
+        long numNodesExisting = this.subtreeMetaData.numLeafsAfterSolve_History.get(ZERO);
+        double numNodesLikelyToBeCreated = forecastCreationNumber(this.subtreeMetaData.numLeafsCreated_History) ;
+        double forecastedSolutionrate = forescastSolutionrate(this.subtreeMetaData.numNodesSolvedPerSecond_History);
+        
+        this.subtreeMetaData.estimatedTimeToCompletionInSeconds =(numNodesLikelyToBeCreated+numNodesExisting)/forecastedSolutionrate;
+        
+    }
 }

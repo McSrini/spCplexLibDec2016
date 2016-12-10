@@ -5,7 +5,7 @@
  */
 package ca.mcmaster.spcplexlibdec2016.datatypes;
 
-import static ca.mcmaster.spcplexlibdec2016.Constants.*;
+import static ca.mcmaster.spcplexlibdec2016.Constants.*; 
 import ilog.concert.IloNumVar;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -43,17 +43,20 @@ public class ActiveSubtreeMetaData {
     public List<String> nodeIDsSelectedForMigration =  new ArrayList<String>();
     //Note that RAMP UP is special - several nodes are farmed, all of them  are pruned in advance, and all are chosen for migration 
     //Note also that we only allow 1 node per ActiveSubtree to be farmed, although the above data structures allow multiple nodes to be farmed
-    
-    //these stats are required to estimate time to completion of the subtree
-    public double timeSpentSolvingThisSubtreeInSeconds = ZERO;
-    public double lpRelaxValueAtBirth = ZERO;
-    public double lpRelaxValueNow = ZERO;
-    public double estimatedObjectiveValueAtCompletion = ZERO;
+     
+    //these tree metrics are required to estimate time to completion of the subtree
+    public List<Long> numLeafsBeforeSolve_History = new ArrayList<Long> ( );
+    public List<Long> numLeafsAfterSolve_History =  new ArrayList<Long> ( );
+    public List<Long> numLeafsCreated_History =  new ArrayList<Long> ( );
+    public List<Double> numNodesSolvedPerSecond_History =  new ArrayList<Double> ( );
+    //how much time will this tree need to complete? default is a large number. Refresh this estimate after every cycle.
+    public double estimatedTimeToCompletionInSeconds = PLUS_INFINITY;
     
     //for performance statistics
     public long numActiveLeafs = ONE; //starts with root
-    public int numNodesSelectedForMigrationSoFar = ZERO;
+   // public int numNodesSelectedForMigrationSoFar = ZERO;
     public long numNodesBranchedUpon = ZERO;
+    //public double timeSpentSolvingThisSubtreeInSeconds=ZERO;
     
     public ActiveSubtreeMetaData( NodeAttachment attachment, IloNumVar[] vars){
         guid = UUID.randomUUID().toString();

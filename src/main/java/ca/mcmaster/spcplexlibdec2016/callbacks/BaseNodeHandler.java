@@ -5,15 +5,23 @@
  */
 package ca.mcmaster.spcplexlibdec2016.callbacks;
 
+import static ca.mcmaster.spcplexlibdec2016.Constants.LOG_FILE_EXTENSION;
 import static ca.mcmaster.spcplexlibdec2016.Constants.MINUS_INFINITY;
 import static ca.mcmaster.spcplexlibdec2016.Constants.ONE;
 import static ca.mcmaster.spcplexlibdec2016.Constants.PLUS_INFINITY;
 import static ca.mcmaster.spcplexlibdec2016.Constants.ZERO;
 import static ca.mcmaster.spcplexlibdec2016.Parameters.IS_MAXIMIZATION;
+import static ca.mcmaster.spcplexlibdec2016.Parameters.LOG_FOLDER;
+import static ca.mcmaster.spcplexlibdec2016.Parameters.PARTITION_ID;
 import ca.mcmaster.spcplexlibdec2016.datatypes.ActiveSubtreeMetaData;
 import ca.mcmaster.spcplexlibdec2016.datatypes.NodeAttachment;
 import ilog.concert.IloException;
 import ilog.cplex.IloCplex;
+import java.io.IOException;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PatternLayout;
+import org.apache.log4j.RollingFileAppender;
 
 /**
  *
@@ -21,7 +29,23 @@ import ilog.cplex.IloCplex;
  */
 public abstract class BaseNodeHandler extends IloCplex.NodeCallback{
     
+    private static Logger logger=Logger.getLogger(BaseNodeHandler.class);
+    
     protected ActiveSubtreeMetaData subTreeMetaData ;
+            
+    static {
+        logger.setLevel(Level.DEBUG);
+        PatternLayout layout = new PatternLayout("%5p  %d  %F  %L  %m%n");     
+        try {
+            logger.addAppender(new  RollingFileAppender(layout,LOG_FOLDER+
+                    BaseNodeHandler.class.getSimpleName()+PARTITION_ID+ LOG_FILE_EXTENSION));
+            logger.setAdditivity(false);
+             
+        } catch (IOException ex) {
+            ///
+        }
+          
+    }
        
     //this method chooses the node for farming -- change this method if you have better heuristics for choosing migration candidates
     //
@@ -33,57 +57,46 @@ public abstract class BaseNodeHandler extends IloCplex.NodeCallback{
         long selectedNodeIndex= ZERO;//default
         double bestKnownLPRelax = getObjValue(ZERO) ;
         
+        NodeAttachment nodeData = (NodeAttachment) getNodeData(ZERO );
+        double selectedNodesVarBoundTighenings = nodeData.getSumofVarboundTightenings();
+        double selectedNodesEstimatedObjectiveValue =  getEstimatedObjValue(ZERO );
+        
         NodeMetrics metrics = getAverageMetrics();
         
         for(long index = ONE; index <getNremainingNodes64(); index ++ ){
-            NodeAttachment nodeData = (NodeAttachment) getNodeData(index );
-            if (nodeData.getSumofVarboundTightenings()> metrics.avgVarBoundTightenings  ){
+            nodeData = (NodeAttachment) getNodeData(index );
+            if (nodeData.getSumofVarboundTightenings()>= metrics.avgVarBoundTightenings  ){
                 
-                if ( IS_MAXIMIZATION && bestKnownLPRelax< getObjValue(index) &&  metrics.avgEstimatedObjValue < getEstimatedObjValue(index )) {
+                if ( IS_MAXIMIZATION && bestKnownLPRelax< getObjValue(index) &&  metrics.avgEstimatedObjValue <= getEstimatedObjValue(index )) {
                     bestKnownLPRelax =getObjValue(index);
                     selectedNodeIndex = index;
-                } else if (! IS_MAXIMIZATION && bestKnownLPRelax> getObjValue(index) &&  metrics.avgEstimatedObjValue > getEstimatedObjValue(index )) {
+                    
+                    selectedNodesVarBoundTighenings=nodeData.getSumofVarboundTightenings();
+                    selectedNodesEstimatedObjectiveValue= getEstimatedObjValue(index );
+                    
+                } else if (! IS_MAXIMIZATION && bestKnownLPRelax> getObjValue(index) &&  metrics.avgEstimatedObjValue >= getEstimatedObjValue(index )) {
                     bestKnownLPRelax =getObjValue(index);
                     selectedNodeIndex = index;
+                    
+                    selectedNodesVarBoundTighenings=nodeData.getSumofVarboundTightenings();
+                    selectedNodesEstimatedObjectiveValue= getEstimatedObjValue(index );
+                
                 }                
-                 
+                
             }
         }
         
+        logger.info("LP relax of farming candidate " + bestKnownLPRelax + " Var bound tighetening " + selectedNodesVarBoundTighenings + 
+                " Estimated Obj value " + selectedNodesEstimatedObjectiveValue); 
         return selectedNodeIndex;
     }
      
-    protected void initializeNodeWithMetricsUsedInMigrationDecisions(long selectedNodeIndex) throws IloException {
+    /*protected void initializeNodeWithMetricsUsedInMigrationDecisions(long selectedNodeIndex) throws IloException {
          NodeAttachment nodeData = (NodeAttachment) getNodeData(selectedNodeIndex );
          nodeData.setNumberOfIntInfeasibilities(getNinfeasibilities(selectedNodeIndex) );
          nodeData.setSumOfIntInfeasibilities( getInfeasibilitySum(selectedNodeIndex));
          setNodeData(selectedNodeIndex ,nodeData) ;
-    }
-    
-    protected void updateTreeCompletionMetrics() throws IloException{
-        
-        //update the estimated tree lpRelaxValueNow  and estimatedObjectiveValueAtCompletion
-        //for maximization, these are the highest LPrelax and estimate of all reamining nodes
-        
-        double lpRelaxValueNow = IS_MAXIMIZATION ? MINUS_INFINITY : PLUS_INFINITY;
-        double estimateAtCompletion = IS_MAXIMIZATION ? MINUS_INFINITY : PLUS_INFINITY; 
-        for (int index = ZERO ; index < getNremainingNodes64(); index ++){
-            if (getEstimatedObjValue(index ) > estimateAtCompletion && IS_MAXIMIZATION) {
-                estimateAtCompletion=getEstimatedObjValue(index );
-            }
-            if (getEstimatedObjValue(index ) < estimateAtCompletion && !IS_MAXIMIZATION) {
-                estimateAtCompletion=getEstimatedObjValue(index );
-            }
-            if ( getObjValue(index) >  lpRelaxValueNow && IS_MAXIMIZATION) {
-                lpRelaxValueNow= getObjValue(index);
-            }
-            if ( getObjValue(index) < lpRelaxValueNow && !IS_MAXIMIZATION) {
-                lpRelaxValueNow= getObjValue(index);
-            }
-        }
-        this.subTreeMetaData.lpRelaxValueNow =lpRelaxValueNow;
-        this.subTreeMetaData.estimatedObjectiveValueAtCompletion=estimateAtCompletion;
-    }
+    }*/
     
     protected NodeMetrics getAverageMetrics () throws IloException{
                 
@@ -105,5 +118,7 @@ public abstract class BaseNodeHandler extends IloCplex.NodeCallback{
         
         return metrics; 
     }
+       
+    
     
 }

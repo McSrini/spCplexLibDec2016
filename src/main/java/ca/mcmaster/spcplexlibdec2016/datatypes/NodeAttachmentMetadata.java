@@ -26,8 +26,6 @@ public class NodeAttachmentMetadata  implements Serializable{
     public String nodeID;
     
     //a few metrics which can be used to decide which nodes to pluck out
-    public int numberOfIntegerInfeasibilities = ZERO;
-    public double  sumOfIntegerInfeasibilities = ZERO;
     public double lpRelaxValue =ZERO;
     public double sumOfVarBoundTightenings = ZERO;
             
@@ -40,8 +38,8 @@ public class NodeAttachmentMetadata  implements Serializable{
         cloned.distanceFromSubtreeRoot= this.distanceFromSubtreeRoot;
                 
         cloned.nodeID= this.nodeID;
-        cloned.numberOfIntegerInfeasibilities= this.numberOfIntegerInfeasibilities;
-        cloned.sumOfIntegerInfeasibilities=this.sumOfIntegerInfeasibilities;
+        //cloned.numberOfIntegerInfeasibilities= this.numberOfIntegerInfeasibilities;
+       // cloned.sumOfIntegerInfeasibilities=this.sumOfIntegerInfeasibilities;
         cloned.lpRelaxValue= this.lpRelaxValue;
         cloned.sumOfVarBoundTightenings=this.sumOfVarBoundTightenings;
         

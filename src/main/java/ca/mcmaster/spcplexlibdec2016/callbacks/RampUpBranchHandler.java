@@ -20,11 +20,8 @@ import ilog.cplex.IloCplex;
  *   
  * 
  */
-public class RampUpBranchHandler  extends IloCplex.BranchCallback{
-    
-    //meta data of the subtree which we are monitoring
-    private ActiveSubtreeMetaData subtreeMetaData;
-        
+public class RampUpBranchHandler  extends BaseBranchhandler {
+          
     public RampUpBranchHandler (ActiveSubtreeMetaData metaData ) {
         this.  subtreeMetaData= metaData;    
          
@@ -53,15 +50,26 @@ public class RampUpBranchHandler  extends IloCplex.BranchCallback{
             
             //if threshold reached, start farming
             if (getNremainingNodes64()>=LEAF_NODES_AT_RAMP_UP_HALT){
+                
+                //reduce threshold by 1
+                LEAF_NODES_AT_RAMP_UP_HALT --;
+                
+                //farm the node
                 this.subtreeMetaData.farmedNodesMap.put(nodeData .getNodeid(),nodeData  );
                 prune();
+                
+                //check if ramp up complete
                 if (subtreeMetaData.farmedNodesMap.size()==(NUM_PARTITIONS-ONE)) abort();
+                
+            } else {
+                //simply create the 2 child nodes
+                createTwoChildNodes(  nodeData);
             }
             
+            
+            this.subtreeMetaData.numActiveLeafs= getNremainingNodes64();
             
         } //end if getNbranches()> ZERO
     } //end main
     
-    
-
 }//end class

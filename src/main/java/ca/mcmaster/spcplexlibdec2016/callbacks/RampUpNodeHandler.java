@@ -9,6 +9,7 @@ import static ca.mcmaster.spcplexlibdec2016.Constants.ONE;
 import static ca.mcmaster.spcplexlibdec2016.Constants.ZERO;
 import static ca.mcmaster.spcplexlibdec2016.Parameters.IS_MAXIMIZATION; 
 import static ca.mcmaster.spcplexlibdec2016.Parameters.LEAF_NODES_AT_RAMP_UP_HALT;
+import static ca.mcmaster.spcplexlibdec2016.Parameters.RAMP_UP_VAR_BOUND_RANGE;
 import ca.mcmaster.spcplexlibdec2016.datatypes.ActiveSubtreeMetaData;
 import ca.mcmaster.spcplexlibdec2016.datatypes.NodeAttachment;
 import ilog.concert.IloException;
@@ -29,8 +30,7 @@ public class RampUpNodeHandler  extends BaseNodeHandler{
 
     @Override
     protected void main() throws IloException {
-                    
-                
+                                    
         if(getNremainingNodes64()> ZERO){
                         
             if(getNremainingNodes64()== ONE){
@@ -46,18 +46,36 @@ public class RampUpNodeHandler  extends BaseNodeHandler{
                             subTreeMetaData.rootNodeAttachment.getDistanceFromOriginalRoot(),
                             ZERO );  
 
-                    subTreeMetaData.lpRelaxValueAtBirth =  getObjValue(ZERO);
+                    //subTreeMetaData.lpRelaxValueAtBirth =  getObjValue(ZERO);
                     setNodeData(ZERO ,nodeData) ;
 
                 } 
 
             }   
             
+            boolean canFarm = false;
+            long indexOfFarmingCandidate=-ONE;
+            
+            if (getNremainingNodes64()>=LEAF_NODES_AT_RAMP_UP_HALT) {
+                
+                indexOfFarmingCandidate=getIndexOfFarmingCandidate();
+                if (subTreeMetaData.farmedNodesMap.size()>ZERO) {
+                    
+                    //farming candidate var bounds must be within 10% of the first farmed node
+                    NodeAttachment firstFarmednodeData=(NodeAttachment)subTreeMetaData.farmedNodesMap.values().toArray()[ZERO];
+                    NodeAttachment candidateNodeData = (NodeAttachment) getNodeData(indexOfFarmingCandidate );
+                    canFarm = firstFarmednodeData.getSumofVarboundTightenings() * (ONE - RAMP_UP_VAR_BOUND_RANGE ) < candidateNodeData.getSumofVarboundTightenings();
+                }else {
+                    canFarm = true;
+                }
+            }
+            
             //keep selecting best first until number of leafs grows to a threshold
-            if (getNremainingNodes64()<LEAF_NODES_AT_RAMP_UP_HALT){
+            if (  !canFarm){
                 long selectedIndex = ZERO;
                 double bestKnownLPRelax = getObjValue(ZERO);
 
+                /* 
                 for(long index = ZERO; index <getNremainingNodes64(); index ++ ){
                     if ( IS_MAXIMIZATION && bestKnownLPRelax< getObjValue(index) ){
                         selectedIndex = index;
@@ -67,24 +85,18 @@ public class RampUpNodeHandler  extends BaseNodeHandler{
                         selectedIndex = index;
                         bestKnownLPRelax = getObjValue(index);
                     }
-                }
+                } */
                 
                 selectNode(selectedIndex);
                 
             } else {
                 //we will farm now, select good migration candidate , which may not be the highest LP relax node
                 
-                long selectedNodeIndex=getIndexOfFarmingCandidate();
-
-                //if no farming candidate available, abort. This should never happen.
-                if(selectedNodeIndex < ZERO) abort();
-
+                long selectedNodeIndex=indexOfFarmingCandidate;
+ 
                 //set useful metrics inside this node which are only available in the node handler
-                initializeNodeWithMetricsUsedInMigrationDecisions(selectedNodeIndex);
-                
-                //update tree LP relax value etc.
-                updateTreeCompletionMetrics();
-
+                //initializeNodeWithMetricsUsedInMigrationDecisions(selectedNodeIndex);
+                                
                 selectNode(selectedNodeIndex);
                 
             }            

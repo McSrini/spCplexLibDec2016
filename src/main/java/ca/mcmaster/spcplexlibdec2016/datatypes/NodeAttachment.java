@@ -71,6 +71,7 @@ public class NodeAttachment  implements Serializable{
         return nodeMetadata.distanceFromSubtreeRoot;
     }
     
+    /*
     public void setNumberOfIntInfeasibilities(int val) {
        nodeMetadata. numberOfIntegerInfeasibilities= val;
     }
@@ -86,6 +87,7 @@ public class NodeAttachment  implements Serializable{
     public double getSumOfIntInfeasibilities( ) {
         return nodeMetadata.sumOfIntegerInfeasibilities;
     }
+    */
     
     public void setNodeid(String val) {
         nodeMetadata.nodeID= val;
@@ -112,11 +114,11 @@ public class NodeAttachment  implements Serializable{
     }
     
     public Map< String, Double >   getBranchingVariableUpperBounds   () {
-        return  Collections.unmodifiableMap(branchingVariableUpperBounds)  ;
+        return  branchingVariableUpperBounds  ;
     }
 
     public Map< String, Double >   getBranchingVariableLowerBounds   () {
-        return   Collections.unmodifiableMap(branchingVariableLowerBounds) ;
+        return  branchingVariableLowerBounds ;
     }
         
     public NodeAttachmentMetadata getMetadataCopy () {

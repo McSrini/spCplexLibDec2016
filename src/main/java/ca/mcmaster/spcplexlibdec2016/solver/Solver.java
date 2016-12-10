@@ -40,18 +40,18 @@ public class Solver {
     
     }
     
-    public IloCplex.Status solve(double timeSliceInSeconds,     double bestKnownGlobalOptimum ,SolutionPhase solutionPhase   ) 
+    public IloCplex.Status solve(double timeSliceInSeconds,     double bestKnownLocalOptimum ,SolutionPhase solutionPhase   ) 
             throws  Exception{
                 
-        branchHandler.refresh(bestKnownGlobalOptimum,   solutionPhase );  
-        this.nodeHandler.refresh(solutionPhase);
+        branchHandler.refresh(bestKnownLocalOptimum,   solutionPhase );  
+        nodeHandler.refresh(bestKnownLocalOptimum, solutionPhase);
          
         cplex.setParam(IloCplex.Param.TimeLimit, timeSliceInSeconds); 
         //set cutoff
         if (IS_MAXIMIZATION) {
-            cplex.setParam(    IloCplex.Param.MIP.Tolerances.LowerCutoff, bestKnownGlobalOptimum);
+            cplex.setParam(    IloCplex.Param.MIP.Tolerances.LowerCutoff, bestKnownLocalOptimum);
         }else {
-            cplex.setParam(    IloCplex.Param.MIP.Tolerances.UpperCutoff, bestKnownGlobalOptimum);
+            cplex.setParam(    IloCplex.Param.MIP.Tolerances.UpperCutoff, bestKnownLocalOptimum);
         }
         cplex.solve();
         

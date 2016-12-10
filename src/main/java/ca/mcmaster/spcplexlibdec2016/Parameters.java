@@ -17,7 +17,7 @@ public class Parameters  implements Serializable{
     //should move to properties file
     
     //this is the file we are solving
-    public static final String SAV_FILENAME="F:\\temporary files here\\a1c1s1.mps";   
+    public static final String SAV_FILENAME="F:\\temporary files here\\msc98-ip.mps";   
     public  static final  boolean IS_MAXIMIZATION = false;
     
     
@@ -25,7 +25,9 @@ public class Parameters  implements Serializable{
     
     public static final int NUM_PARTITIONS =   ONE*(TWO -ONE) + THREE *TWO;
     
-    public static final int  LEAF_NODES_AT_RAMP_UP_HALT  =  Math.min(TEN*FIVE +NUM_PARTITIONS , FIVE*NUM_PARTITIONS); 
+    public static   int  LEAF_NODES_AT_RAMP_UP_HALT  =   NUM_PARTITIONS  ; 
+    //the sum of var bounds of the nodes farmed by ramp up are with 10% of the first such farmed node
+    public static final double RAMP_UP_VAR_BOUND_RANGE = 0.1;
     
     public static   int NUM_NODES_TO_MIGRATE = ONE; //increases later
     
@@ -37,7 +39,7 @@ public class Parameters  implements Serializable{
     //
     //If we have more than 1 Iloclex on a partition, then they are equally time sliced during the map cycle
     //
-    public  static final  int MAX_ACTIVE_SUBTREES_PER_PARTITION  =     FOUR; 
+    public  static final  int MAX_ACTIVE_SUBTREES_PER_PARTITION  =     ONE; 
     
     //search strategy
     public static final int DepthFirst= ZERO;
@@ -50,7 +52,7 @@ public class Parameters  implements Serializable{
     //The partition on which this library (i.e. the ActiveSubtree and supporting objects) live
     public static int  PARTITION_ID = ONE;
     //This is used for logging
-    public static String LOG_FOLDER="F:\\temporary files here\\";
+    public static String LOG_FOLDER="F:\\temporary files here\\logs\\sparkplex\\";
         
-    public static double  RELATIVE_MIP_GAP = ZERO; 
+    public static double  RELATIVE_MIP_GAP = ZERO;  
 }

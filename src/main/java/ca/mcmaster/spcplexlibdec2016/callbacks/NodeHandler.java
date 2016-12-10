@@ -8,9 +8,11 @@ package ca.mcmaster.spcplexlibdec2016.callbacks;
 import static ca.mcmaster.spcplexlibdec2016.Constants.*;
 import static ca.mcmaster.spcplexlibdec2016.Constants.SolutionPhase.*;
 import static ca.mcmaster.spcplexlibdec2016.Parameters.IS_MAXIMIZATION;
+import static ca.mcmaster.spcplexlibdec2016.Parameters.SOLUTION_TIME_SLICE_PER_PARTITION_IN_SECONDS;
 import   ca.mcmaster.spcplexlibdec2016.datatypes.*;
 import ilog.concert.IloException;
 import ilog.cplex.IloCplex;
+import org.apache.log4j.Logger;
 
 /**
  *
@@ -21,9 +23,13 @@ import ilog.cplex.IloCplex;
  * 
  */
 public class NodeHandler extends BaseNodeHandler{
+    
+    
             
     //solution phase indicates whether we are farming,  or just solving
     private SolutionPhase solutionPhase ;
+    
+    protected double bestKnownLocalOptimum;
     
     public NodeHandler (ActiveSubtreeMetaData meta) {
         this.subTreeMetaData= meta;
@@ -47,8 +53,7 @@ public class NodeHandler extends BaseNodeHandler{
                         subTreeMetaData.rootNodeAttachment.getDistanceFromOriginalRoot(),
                         ZERO );  
                 
-                subTreeMetaData.lpRelaxValueAtBirth =  getObjValue(ZERO);
-                
+                    
                 setNodeData(selectedNodeIndex ,nodeData) ;
                 
             } 
@@ -56,27 +61,29 @@ public class NodeHandler extends BaseNodeHandler{
         }   
                         
         //if in farming phase, we choose node to be processed. Else we dont interfere with node selection
-        if(DO_FARMING==solutionPhase && getNremainingNodes64()>ONE)     /*cannot farm root node*/     {
+        if(DO_FARMING==solutionPhase && getNremainingNodes64()>ONE)     /* careful -- cannot farm root node*/     {
             
-            //update tree LP relax value etc. for the tree, these will be inspected before plucking 
-            updateTreeCompletionMetrics();
-                                  
-            selectedNodeIndex=getIndexOfFarmingCandidate();
+            //do not farm tree which is close to completion
+            if (this.subTreeMetaData.estimatedTimeToCompletionInSeconds < 
+                    SOLUTION_TIME_SLICE_PER_PARTITION_IN_SECONDS) {
+                abort();
+            } else{
+                
+                selectedNodeIndex=getIndexOfFarmingCandidate();
 
-            //if no farming candidate available, abort
-            if(selectedNodeIndex < ZERO) abort();
-                       
-            //set useful metrics inside this node which are only available in the node handler
-            initializeNodeWithMetricsUsedInMigrationDecisions(selectedNodeIndex);
-                        
-            selectNode(selectedNodeIndex);
+                //if no farming candidate available, abort
+                if(selectedNodeIndex < ZERO) abort();
+
+                //set useful metrics inside this node which are only available in the node handler
+                //initializeNodeWithMetricsUsedInMigrationDecisions(selectedNodeIndex);
+
+               
+                selectNode(selectedNodeIndex);
+            }                                  
             
         }
         
         if (DO_FARMING==solutionPhase && getNremainingNodes64()<=ONE) {
-            
-            //update tree LP relax value etc. for the tree, these will be inspected before plucking 
-            updateTreeCompletionMetrics();
             
             //do not farm
             abort();
@@ -86,11 +93,9 @@ public class NodeHandler extends BaseNodeHandler{
       
     }
         
-    public void refresh(  SolutionPhase solutionPhase) {
-        
+    public void refresh(   double bestKnownLocalOptimum, SolutionPhase solutionPhase) {
+        this.bestKnownLocalOptimum = bestKnownLocalOptimum;
         this.solutionPhase = solutionPhase;
     } 
     
-
- 
 }
